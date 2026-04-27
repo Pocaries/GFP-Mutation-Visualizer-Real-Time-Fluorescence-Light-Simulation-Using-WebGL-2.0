@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GFP Mutation Visualizer · WebGL 2.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05080f;
+  --panel:#0a0e18;
+  --panel2:#0d1220;
+  --border:#1a2336;
+  --border2:#243044;
+  --text:#b8cce0;
+  --muted:#4a6080;
+  --accent:#39ff8f;
+  --gfp-c:#39ff8f;
+  --bfp-c:#4d8eff;
+  --cfp-c:#00e5ff;
+  --yfp-c:#ffe600;
+  --rfp-c:#ff3366;
+}
+
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'JetBrains Mono',monospace;color:var(--text)}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-columns:280px 1fr 240px;grid-template-rows:52px 1fr 120px;width:100vw;height:100vh;gap:1px;background:var(--border)}
+
+/* ── HEADER ── */
+#header{
+  grid-column:1/-1;
+  background:var(--panel);
+  display:flex;align-items:center;gap:14px;padding:0 20px;
+  border-bottom:1px solid var(--border2);
+}
+.pulse-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);animation:pls 2.5s ease-in-out infinite;flex-shrink:0}
+@keyframes pls{0%,100%{box-shadow:0 0 6px var(--accent),0 0 12px var(--accent)}50%{box-shadow:0 0 2px var(--accent)}}
+.hdr-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;color:#fff}
+.hdr-title span{color:var(--muted);font-weight:400}
+.hdr-sep{width:1px;height:28px;background:var(--border2);margin:0 4px}
+.hdr-tag{font-size:10px;padding:3px 8px;border-radius:3px;border:1px solid var(--border2);color:var(--muted)}
+.hdr-badge{margin-left:auto;font-size:10px;padding:3px 10px;border-radius:3px;background:#0a1f0f;color:var(--accent);border:1px solid #1a4a28;letter-spacing:.08em}
+
+/* ── LEFT SIDEBAR ── */
+#sidebar-left{
+  background:var(--panel);
+  padding:14px;
+  display:flex;flex-direction:column;gap:14px;
+  overflow-y:auto;
+}
+.sec-label{font-size:9px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:7px;display:block}
+
+/* variant buttons */
+.vbtn{
+  width:100%;padding:9px 12px;
+  border:1px solid var(--border);border-radius:5px;
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;gap:10px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);
+  transition:all .18s;margin-bottom:5px;text-align:left;
+}
+.vbtn:hover{background:#0f1928;border-color:var(--border2)}
+.vbtn.active{border-color:var(--vc,#39ff8f);background:rgba(57,255,143,.06);color:#fff}
+.vdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:box-shadow .3s}
+.vbtn.active .vdot{box-shadow:0 0 8px var(--vc,#39ff8f)}
+.vmut{font-size:10px;color:var(--muted);margin-left:auto}
+
+/* sliders */
+.param-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.param-label{font-size:10px;color:var(--muted);width:72px;flex-shrink:0}
+input[type=range]{
+  flex:1;-webkit-appearance:none;appearance:none;height:3px;
+  background:var(--border2);border-radius:2px;outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
+  background:var(--accent);border:none;cursor:pointer;
+}
+.param-val{font-size:10px;width:32px;text-align:right;color:#fff}
+
+/* residue info */
+.res-chip{
+  font-size:10px;line-height:1;padding:4px 8px;
+  border:1px solid var(--border2);border-radius:3px;
+  color:var(--text);background:var(--panel2);
+  display:inline-block;margin:2px;
+}
+.res-chip.highlight{border-color:var(--accent);color:var(--accent)}
+
+/* mode toggles */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.mbtn{
+  padding:7px 6px;border:1px solid var(--border);border-radius:4px;
+  background:transparent;cursor:pointer;font-family:'JetBrains Mono',monospace;
+  font-size:10px;color:var(--muted);transition:all .15s;text-align:center;
+}
+.mbtn:hover{border-color:var(--border2);color:var(--text)}
+.mbtn.active{border-color:var(--border2);background:var(--panel2);color:#fff}
+
+/* ── 3D VIEWPORT ── */
+#viewport{
+  background:#04060d;
+  position:relative;
+  overflow:hidden;
+}
+#three-canvas{display:block;width:100%;height:100%}
+
+/* loading overlay */
+#loading{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;
+  background:#04060d;z-index:10;transition:opacity .5s;
+}
+.load-ring{
+  width:48px;height:48px;border-radius:50%;
+  border:2px solid var(--border2);
+  border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-text{font-size:11px;color:var(--muted);letter-spacing:.1em}
+
+/* overlay HUD */
+#hud{
+  position:absolute;top:12px;left:12px;
+  background:rgba(5,8,15,.82);
+  border:1px solid var(--border2);border-radius:6px;
+  padding:10px 14px;backdrop-filter:blur(8px);
+  font-size:10px;line-height:1.9;
+  pointer-events:none;
+}
+.hud-row{display:flex;gap:20px}
+.hud-k{color:var(--muted)}
+.hud-v{color:#fff;font-weight:500}
+
+#controls-hint{
+  position:absolute;bottom:12px;left:12px;
+  font-size:9px;color:var(--muted);letter-spacing:.08em;
+  pointer-events:none;
+}
+
+/* ── RIGHT SIDEBAR ── */
+#sidebar-right{
+  background:var(--panel);
+  padding:14px;
+  display:flex;flex-direction:column;gap:14px;
+  overflow-y:auto;
+}
+
+/* spectrum mini chart */
+#spec-wrap{flex:1;position:relative;min-height:0}
+#specCanvas{width:100%;height:100%;display:block;border-radius:4px;background:#04060d;border:1px solid var(--border)}
+
+.spec-nm{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:4px;padding:0 2px}
+
+/* data table */
+.dtable{width:100%;font-size:10px;border-collapse:collapse}
+.dtable td{padding:4px 0;border-bottom:1px solid var(--border);vertical-align:top}
+.dtable td:first-child{color:var(--muted);width:50%}
+.dtable td:last-child{color:#fff;text-align:right}
+
+/* ── BOTTOM PANEL ── */
+#bottom{
+  grid-column:1/-1;
+  background:var(--panel);
+  display:flex;align-items:stretch;gap:1px;
+  border-top:1px solid var(--border2);
+}
+.bottom-section{
+  flex:1;padding:12px 16px;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:6px;
+}
+.bottom-section:last-child{border-right:none}
+.pipeline{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.pipe-step{font-size:9px;padding:3px 9px;border:1px solid var(--border);border-radius:3px;color:var(--muted);letter-spacing:.05em}
+.pipe-step.on{border-color:#1e3a50;color:#6ab0cc}
+.pipe-arrow{color:var(--border2);font-size:11px}
+#spec-bottom{height:60px;display:block;border-radius:3px;background:#04060d;border:1px solid var(--border)}
+.nm-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--muted);margin-top:3px}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="pulse-dot"></div>
+    <div class="hdr-title">GFP Mutation Visualizer <span>· WebGL 2.0</span></div>
+    <div class="hdr-sep"></div>
+    <div class="hdr-tag">1EMA · Aequorea victoria</div>
+    <div class="hdr-tag">238 aa · β-barrel</div>
+    <div class="hdr-badge">REAL-TIME 3D</div>
+  </div>
+
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar-left">
+
+    <div>
+      <span class="sec-label">Protein Variant</span>
+      <button class="vbtn active" data-v="GFP" style="--vc:#39ff8f">
+        <div class="vdot" style="background:#39ff8f"></div>
+        GFP — Wild type
+        <span class="vmut">Tyr-66</span>
+      </button>
+      <button class="vbtn" data-v="BFP" style="--vc:#4d8eff">
+        <div class="vdot" style="background:#4d8eff"></div>
+        BFP — Blue
+        <span class="vmut">Y66H</span>
+      </button>
+      <button class="vbtn" data-v="CFP" style="--vc:#00e5ff">
+        <div class="vdot" style="background:#00e5ff"></div>
+        CFP — Cyan
+        <span class="vmut">Y66W</span>
+      </button>
+      <button class="vbtn" data-v="YFP" style="--vc:#ffe600">
+        <div class="vdot" style="background:#ffe600"></div>
+        YFP — Yellow
+        <span class="vmut">T203Y</span>
+      </button>
+      <button class="vbtn" data-v="RFP" style="--vc:#ff3366">
+        <div class="vdot" style="background:#ff3366"></div>
+        RFP — Red
+        <span class="vmut">DsRed</span>
+      </button>
+    </div>
+
+    <div>
+      <span class="sec-label">Display Mode</span>
+      <div class="mode-grid">
+        <button class="mbtn active" data-mode="surface">Surface</button>
+        <button class="mbtn" data-mode="cartoon">Cartoon</button>
+        <button class="mbtn" data-mode="wireframe">Wireframe</button>
+        <button class="mbtn" data-mode="points">Points</button>
+      </div>
+    </div>
+
+    <div>
+      <span class="sec-label">Render Parameters</span>
+      <div class="param-row">
+        <span class="param-label">Fluorescence</span>
+        <input type="range" id="s-fluor" min="0" max="1" step="0.02" value="0.7">
+        <span class="param-val" id="v-fluor">0.70</span>
+      </div>
+      <div class="param-row">
+        <span class="param-label">Glow</span>
+        <input type="range" id="s-glow" min="0" max="2" step="0.05" value="0.8">
+        <span class="param-val" id="v-glow">0.80</span>
+      </div>
+      <div class="param-row">
+        <span class="param-label">Opacity</span>
+        <input type="range" id="s-opacity" min="0.1" max="1" step="0.02" value="1">
+        <span class="param-val" id="v-opacity">1.00</span>
+      </div>
+      <div class="param-row">
+        <span class="param-label">Auto-rotate</span>
+        <input type="range" id="s-rot" min="0" max="2" step="0.05" value="0.4">
+        <span class="param-val" id="v-rot">0.40</span>
+      </div>
+      <div class="param-row">
+        <span class="param-label">Bg dark</span>
+        <input type="range" id="s-bg" min="0" max="1" step="0.05" value="0.15">
+        <span class="param-val" id="v-bg">0.15</span>
+      </div>
+    </div>
+
+    <div>
+      <span class="sec-label">Chromophore · SYG</span>
+      <div>
+        <span class="res-chip highlight">Ser-65</span>
+        <span class="res-chip highlight">Tyr-66</span>
+        <span class="res-chip highlight">Gly-67</span>
+        <span class="res-chip">His-148</span>
+        <span class="res-chip">Thr-203</span>
+        <span class="res-chip">Glu-222</span>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--muted);line-height:1.8" id="mut-detail">
+        Cross-link: 65↔67<br>
+        PTM: (Z)-2,3-didehydrotyrosine<br>
+        Siklisasi → Dehidrasi → Oksidasi O₂
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 3D VIEWPORT -->
+  <div id="viewport">
+    <canvas id="three-canvas"></canvas>
+    <div id="loading">
+      <div class="load-ring"></div>
+      <div class="load-text">LOADING 1EMA.GLB · THREE.JS</div>
+    </div>
+    <div id="hud">
+      <div class="hud-row">
+        <span class="hud-k">Variant</span><span class="hud-v" id="hud-variant">GFP</span>
+        <span class="hud-k">λ abs</span><span class="hud-v" id="hud-abs">395 nm</span>
+        <span class="hud-k">λ em</span><span class="hud-v" id="hud-em">507 nm</span>
+        <span class="hud-k">QY</span><span class="hud-v" id="hud-qy">0.79</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-k">Structure</span><span class="hud-v">11× β-strand · 1× α-helix · 238 aa</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-k">Mutation</span><span class="hud-v" id="hud-mut">Tyr-66 (wild type)</span>
+      </div>
+    </div>
+    <div id="controls-hint">DRAG · SCROLL to zoom · RIGHT DRAG to pan</div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div id="sidebar-right">
+    <div>
+      <span class="sec-label">Emission Spectrum</span>
+      <div id="spec-wrap">
+        <canvas id="specCanvas" height="180"></canvas>
+      </div>
+      <div class="spec-nm">
+        <span>400</span><span>450</span><span>500</span><span>550</span><span>600</span><span>650</span>
+      </div>
+    </div>
+
+    <div>
+      <span class="sec-label">Optical Properties</span>
+      <table class="dtable">
+        <tr><td>Variant</td><td id="dt-v">GFP</td></tr>
+        <tr><td>λ absorption</td><td id="dt-abs">395 nm</td></tr>
+        <tr><td>λ emission</td><td id="dt-em">507–510 nm</td></tr>
+        <tr><td>Quantum yield</td><td id="dt-qy">0.79</td></tr>
+        <tr><td>ε (M⁻¹cm⁻¹)</td><td id="dt-eps">55,000</td></tr>
+        <tr><td>Mutation</td><td id="dt-mut">—</td></tr>
+        <tr><td>Residue pos.</td><td id="dt-pos">66</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div id="bottom">
+    <div class="bottom-section">
+      <span class="sec-label" style="margin-bottom:0">Rendering Pipeline</span>
+      <div class="pipeline">
+        <span class="pipe-step on">GLB parse</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Geometry buffer</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Vertex shader</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Fragment shader</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Emissive pass</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Bloom</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step on">Tone map</span>
+      </div>
+    </div>
+    <div class="bottom-section" style="flex:0 0 300px">
+      <span class="sec-label" style="margin-bottom:0">All Variants · Spectral Overview</span>
+      <canvas id="spec-bottom"></canvas>
+      <div class="nm-labels">
+        <span>400nm</span><span>450</span><span>500</span><span>550</span><span>600</span><span>650nm</span>
+      </div>
+    </div>
+    <div class="bottom-section" style="flex:0 0 200px">
+      <span class="sec-label" style="margin-bottom:0">RCSB PDB · 1EMA</span>
+      <div style="font-size:10px;line-height:1.9;color:var(--muted)">
+        Method: <span style="color:var(--text)">X-Ray Diffraction</span><br>
+        Resolution: <span style="color:var(--text)">1.90 Å</span><br>
+        R-factor: <span style="color:var(--text)">0.221</span><br>
+        Released: <span style="color:var(--text)">1996-11-08</span><br>
+        Chains: <span style="color:var(--text)">1 (Monomer)</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- THREE.JS + GLTFLoader from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Variant Data ──────────────────────────────────────────
+const VARIANTS = {
+  GFP:{ color:[0.22,1.0,0.56], hex:'#39ff8f', abs:395, em:507, emRange:'507–510', qy:0.79, eps:'55,000', mut:'— (wild type)', pos:'Tyr-66', mutDetail:'Cross-link: 65↔67\nPTM: (Z)-2,3-didehydrotyrosine\nSiklisasi → Dehidrasi → Oksidasi O₂' },
+  BFP:{ color:[0.30,0.55,1.0], hex:'#4d8eff', abs:383, em:448, emRange:'448 nm', qy:0.24, eps:'31,000', mut:'Y66H — Tyr→His', pos:'His-66', mutDetail:'His-66 mengganti Tyr-66\nSpektrum biru via imidazole chromophore\nCross-link: 65↔67' },
+  CFP:{ color:[0.0,0.90,1.0], hex:'#00e5ff', abs:434, em:477, emRange:'477 nm', qy:0.40, eps:'32,500', mut:'Y66W — Tyr→Trp', pos:'Trp-66', mutDetail:'Trp-66 mengganti Tyr-66\nIndole ring chromophore\nCross-link: 65↔67' },
+  YFP:{ color:[1.0,0.90,0.0], hex:'#ffe600', abs:514, em:527, emRange:'527 nm', qy:0.61, eps:'83,400', mut:'T203Y — Thr→Tyr', pos:'Tyr-203', mutDetail:'T203Y stacking dengan kromofor\nPergeseran batokromik +20 nm\nEmisi paling terang' },
+  RFP:{ color:[1.0,0.20,0.40], hex:'#ff3366', abs:555, em:584, emRange:'584 nm', qy:0.79, eps:'75,000', mut:'DsRed — multiple', pos:'Gln-66', mutDetail:'Extended π-conjugation\nOksidasi tambahan Gln-66→Acylimine\nCross-link diperpanjang' },
+};
+
+let currentVariant = 'GFP';
+let fluorStrength = 0.7, glowStrength = 0.8, opacityVal = 1.0, rotSpeed = 0.4, bgDark = 0.15;
+let displayMode = 'surface';
+let specT = 0;
+
+// ── Three.js Setup ────────────────────────────────────────
+const canvas3d = document.getElementById('three-canvas');
+const viewport = document.getElementById('viewport');
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+camera.position.set(0, 0, 80);
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight1.position.set(50, 50, 50);
+scene.add(dirLight1);
+const dirLight2 = new THREE.DirectionalLight(0x88ccff, 0.3);
+dirLight2.position.set(-50, -20, -30);
+scene.add(dirLight2);
+
+// Emissive point light (chromophore glow)
+const glowLight = new THREE.PointLight(0x39ff8f, 2.0, 120);
+glowLight.position.set(0, 0, 0);
+scene.add(glowLight);
+
+// ── OrbitControls (manual, lightweight) ──────────────────
+let isDragging = false, isRightDrag = false;
+let prevMouse = {x:0, y:0};
+let spherical = {theta:0, phi:Math.PI/2, r:80};
+let panOffset = new THREE.Vector3();
+let targetSpherical = {theta:0, phi:Math.PI/2, r:80};
+let targetPan = new THREE.Vector3();
+
+function updateCamera(){
+  const sinPhi = Math.sin(spherical.phi);
+  const cosPhi = Math.cos(spherical.phi);
+  camera.position.set(
+    spherical.r * sinPhi * Math.sin(spherical.theta) + panOffset.x,
+    spherical.r * cosPhi + panOffset.y,
+    spherical.r * sinPhi * Math.cos(spherical.theta) + panOffset.z
+  );
+  camera.lookAt(panOffset);
+}
+
+canvas3d.addEventListener('mousedown', e=>{
+  isDragging = true;
+  isRightDrag = e.button === 2;
+  prevMouse = {x:e.clientX, y:e.clientY};
+  e.preventDefault();
+});
+canvas3d.addEventListener('contextmenu', e=>e.preventDefault());
+window.addEventListener('mouseup', ()=>isDragging=false);
+window.addEventListener('mousemove', e=>{
+  if(!isDragging) return;
+  const dx = (e.clientX - prevMouse.x)*0.005;
+  const dy = (e.clientY - prevMouse.y)*0.005;
+  if(isRightDrag){
+    panOffset.x -= dx * spherical.r * 0.6;
+    panOffset.y += dy * spherical.r * 0.6;
+  } else {
+    spherical.theta -= dx;
+    spherical.phi = Math.max(0.1, Math.min(Math.PI-0.1, spherical.phi + dy));
+  }
+  prevMouse = {x:e.clientX, y:e.clientY};
+});
+canvas3d.addEventListener('wheel', e=>{
+  spherical.r = Math.max(20, Math.min(300, spherical.r + e.deltaY * 0.1));
+  e.preventDefault();
+},{passive:false});
+
+// Touch support
+let touches = [];
+canvas3d.addEventListener('touchstart', e=>{ touches=[...e.touches]; e.preventDefault();},{passive:false});
+canvas3d.addEventListener('touchmove', e=>{
+  if(e.touches.length===1 && touches.length===1){
+    const dx=(e.touches[0].clientX-touches[0].clientX)*0.005;
+    const dy=(e.touches[0].clientY-touches[0].clientY)*0.005;
+    spherical.theta-=dx; spherical.phi=Math.max(0.1,Math.min(Math.PI-0.1,spherical.phi+dy));
+  } else if(e.touches.length===2 && touches.length===2){
+    const d1=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const d0=Math.hypot(touches[0].clientX-touches[1].clientX,touches[0].clientY-touches[1].clientY);
+    spherical.r=Math.max(20,Math.min(300,spherical.r*(d0/d1)));
+  }
+  touches=[...e.touches]; e.preventDefault();
+},{passive:false});
+
+// ── GLB Loader (manual fetch + parse) ────────────────────
+let modelGroup = null;
+let originalMaterials = [];
+
+async function loadGLB(url){
+  // Use THREE.GLTFLoader if available, else fallback
+  return new Promise((resolve, reject)=>{
+    // Dynamically load GLTFLoader
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';
+    script.onload = () => {
+      const loader = new THREE.GLTFLoader();
+      loader.load(url,
+        gltf => resolve(gltf),
+        xhr => { if(xhr.total) document.querySelector('.load-text').textContent = `LOADING · ${Math.round(xhr.loaded/xhr.total*100)}%`; },
+        err => reject(err)
+      );
+    };
+    script.onerror = () => reject(new Error('GLTFLoader not available'));
+    document.head.appendChild(script);
+  });
+}
+
+async function initModel(){
+  try {
+    const gltf = await loadGLB('1EMA.glb');
+    modelGroup = gltf.scene;
+
+    // Center model
+    const box = new THREE.Box3().setFromObject(modelGroup);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = 40 / maxDim;
+    modelGroup.scale.setScalar(scale);
+    modelGroup.position.sub(center.multiplyScalar(scale));
+
+    // Collect & enhance materials
+    modelGroup.traverse(child => {
+      if(child.isMesh){
+        const mat = child.material;
+        originalMaterials.push({ mesh: child, mat: mat.clone() });
+        mat.roughness = 0.4;
+        mat.metalness = 0.05;
+        mat.emissive = new THREE.Color(0x39ff8f);
+        mat.emissiveIntensity = 0.12;
+        mat.needsUpdate = true;
+      }
+    });
+
+    scene.add(modelGroup);
+
+    // Set camera distance based on model
+    spherical.r = maxDim * scale * 2.2;
+    updateCamera();
+
+    // Hide loading
+    const loadEl = document.getElementById('loading');
+    loadEl.style.opacity = '0';
+    setTimeout(()=>loadEl.style.display='none', 500);
+
+  } catch(err){
+    console.error('GLB load failed:', err);
+    // Fallback: render procedural β-barrel
+    document.querySelector('.load-text').textContent = 'Using procedural model';
+    buildProceduralModel();
+    const loadEl = document.getElementById('loading');
+    loadEl.style.opacity = '0';
+    setTimeout(()=>loadEl.style.display='none', 500);
+  }
+}
+
+function buildProceduralModel(){
+  modelGroup = new THREE.Group();
+  const v = VARIANTS[currentVariant];
+  const color = new THREE.Color(...v.color);
+
+  // β-barrel: 11 strands
+  const strandCount = 11;
+  for(let i=0; i<strandCount; i++){
+    const angle = (i/strandCount)*Math.PI*2;
+    const x = Math.cos(angle)*14, z = Math.sin(angle)*14;
+    const geo = new THREE.CylinderGeometry(0.8, 0.8, 32, 6);
+    const mat = new THREE.MeshStandardMaterial({color, roughness:0.4, metalness:0.1, emissive:color, emissiveIntensity:0.15});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x,0,z);
+    mesh.rotation.z = Math.atan2(z,x)*0.05;
+    originalMaterials.push({mesh, mat:mat.clone()});
+    modelGroup.add(mesh);
+  }
+
+  // α-helix (central)
+  const helixPts = [];
+  for(let i=0; i<80; i++){
+    const t=i/79, y=(t-0.5)*28;
+    const r=2.2, ang=t*Math.PI*6;
+    helixPts.push(new THREE.Vector3(Math.cos(ang)*r, y, Math.sin(ang)*r));
+  }
+  const helixCurve = new THREE.CatmullRomCurve3(helixPts);
+  const helixGeo = new THREE.TubeGeometry(helixCurve,80,0.9,8,false);
+  const helixMat = new THREE.MeshStandardMaterial({color:new THREE.Color(1,0.6,0.2),roughness:0.35,metalness:0.1,emissive:new THREE.Color(0.5,0.3,0.1),emissiveIntensity:0.2});
+  modelGroup.add(new THREE.Mesh(helixGeo, helixMat));
+
+  // Chromophore sphere
+  const chrGeo = new THREE.SphereGeometry(2.5, 32, 32);
+  const chrMat = new THREE.MeshStandardMaterial({color, roughness:0.1, metalness:0, emissive:color, emissiveIntensity:1.5, transparent:true, opacity:0.95});
+  const chrMesh = new THREE.Mesh(chrGeo, chrMat);
+  originalMaterials.push({mesh:chrMesh, mat:chrMat.clone()});
+  modelGroup.add(chrMesh);
+
+  scene.add(modelGroup);
+}
+
+// ── Apply variant color to model ──────────────────────────
+function applyVariant(){
+  if(!modelGroup) return;
+  const v = VARIANTS[currentVariant];
+  const emColor = new THREE.Color(...v.color);
+  glowLight.color = emColor;
+  glowLight.intensity = 1.5 + fluorStrength * 2.5;
+
+  modelGroup.traverse(child=>{
+    if(!child.isMesh) return;
+    const mat = child.material;
+    if(Array.isArray(mat)) return;
+    mat.emissive = emColor;
+    mat.emissiveIntensity = fluorStrength * 0.5;
+    mat.opacity = opacityVal;
+    mat.transparent = opacityVal < 1;
+
+    if(displayMode === 'wireframe'){
+      mat.wireframe = true;
+    } else if(displayMode === 'points'){
+      child.visible = true;
+    } else {
+      mat.wireframe = false;
+    }
+    mat.needsUpdate = true;
+  });
+}
+
+// ── UI Updates ────────────────────────────────────────────
+function updateUI(){
+  const v = VARIANTS[currentVariant];
+  document.getElementById('hud-variant').textContent = currentVariant;
+  document.getElementById('hud-abs').textContent = v.abs+' nm';
+  document.getElementById('hud-em').textContent = v.em+' nm';
+  document.getElementById('hud-qy').textContent = v.qy;
+  document.getElementById('hud-mut').textContent = v.mut;
+  document.getElementById('dt-v').textContent = currentVariant;
+  document.getElementById('dt-abs').textContent = v.abs+' nm';
+  document.getElementById('dt-em').textContent = v.emRange;
+  document.getElementById('dt-qy').textContent = v.qy;
+  document.getElementById('dt-eps').textContent = v.eps;
+  document.getElementById('dt-mut').textContent = v.mut;
+  document.getElementById('dt-pos').textContent = v.pos;
+  document.getElementById('mut-detail').textContent = v.mutDetail;
+  document.querySelectorAll('.vbtn').forEach(b=>b.classList.toggle('active', b.dataset.v===currentVariant));
+  // Update accent css var
+  document.documentElement.style.setProperty('--accent', v.hex);
+  document.querySelector('input[type=range]').style.setProperty('--accent', v.hex);
+}
+
+// ── Spectral Canvas ───────────────────────────────────────
+function drawSpectrum(cvs, showAll, t){
+  const dpr = window.devicePixelRatio||1;
+  const rect = cvs.getBoundingClientRect();
+  if(cvs.width !== Math.round(rect.width*dpr)){
+    cvs.width = Math.round(rect.width*dpr);
+    cvs.height = Math.round(rect.height*dpr);
+  }
+  const ctx = cvs.getContext('2d');
+  const W=cvs.width, H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#04060d'; ctx.fillRect(0,0,W,H);
+
+  // Grid lines
+  ctx.strokeStyle='rgba(26,35,54,0.8)'; ctx.lineWidth=0.5;
+  for(let i=0;i<=6;i++){
+    const x=W*i/6; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+  for(let i=0;i<=4;i++){
+    const y=H*i/4; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+
+  const nmToX = nm => ((nm-400)/(650-400))*W;
+  const sigma = 22;
+
+  const variants = showAll ? Object.entries(VARIANTS) : Object.entries(VARIANTS).filter(([k])=>k===currentVariant);
+  const variantsFull = showAll ? Object.entries(VARIANTS) : [];
+
+  // Draw inactive variants first
+  Object.entries(VARIANTS).forEach(([name, vd])=>{
+    if(!showAll && name!==currentVariant) return;
+    if(showAll && name===currentVariant) return;
+    const peakX = nmToX(vd.em);
+    const col = vd.color.map(c=>Math.round(c*255)).join(',');
+    ctx.beginPath();
+    for(let x=0;x<W;x++){
+      const nm=400+(x/W)*(650-400);
+      const g = Math.exp(-((nm-vd.em)**2)/(2*sigma*sigma));
+      ctx.lineTo(x, H - g*H*0.82);
+    }
+    ctx.strokeStyle=`rgba(${col},0.25)`; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  // Draw current variant with glow
+  const cv = VARIANTS[currentVariant];
+  const col = cv.color.map(c=>Math.round(c*255)).join(',');
+  const peakX = nmToX(cv.em);
+  const pulse = 0.85 + 0.15*Math.sin(t*5);
+
+  // Fill under curve
+  ctx.beginPath();
+  ctx.moveTo(0,H);
+  for(let x=0;x<W;x++){
+    const nm=400+(x/W)*(650-400);
+    const g = Math.exp(-((nm-cv.em)**2)/(2*sigma*sigma))*pulse;
+    x===0?ctx.moveTo(x,H-g*H*0.82):ctx.lineTo(x,H-g*H*0.82);
+  }
+  ctx.lineTo(W,H);
+  const grad=ctx.createLinearGradient(peakX-60,0,peakX+60,0);
+  grad.addColorStop(0,`rgba(${col},0)`);
+  grad.addColorStop(0.5,`rgba(${col},0.28)`);
+  grad.addColorStop(1,`rgba(${col},0)`);
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Stroke line
+  ctx.beginPath();
+  for(let x=0;x<W;x++){
+    const nm=400+(x/W)*(650-400);
+    const g = Math.exp(-((nm-cv.em)**2)/(2*sigma*sigma))*pulse;
+    x===0?ctx.moveTo(x,H-g*H*0.82):ctx.lineTo(x,H-g*H*0.82);
+  }
+  ctx.strokeStyle=`rgba(${col},0.95)`; ctx.lineWidth=2; ctx.stroke();
+
+  // Peak label
+  ctx.font=`bold 10px JetBrains Mono,monospace`;
+  ctx.fillStyle=`rgba(${col},0.9)`;
+  ctx.textAlign='center';
+  const lx=Math.min(Math.max(peakX,25),W-30);
+  ctx.fillText(`${currentVariant} ${cv.em}nm`, lx, 14);
+
+  if(showAll){
+    // Labels for inactive
+    Object.entries(VARIANTS).forEach(([name,vd])=>{
+      if(name===currentVariant) return;
+      const px=nmToX(vd.em);
+      const c2=vd.color.map(c=>Math.round(c*255)).join(',');
+      ctx.font='9px JetBrains Mono,monospace';
+      ctx.fillStyle=`rgba(${c2},0.5)`;
+      ctx.textAlign='center';
+      ctx.fillText(`${name}`, Math.min(Math.max(px,20),W-20), H-6);
+    });
+  }
+}
+
+// ── Resize Handler ────────────────────────────────────────
+function onResize(){
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ── Animation Loop ────────────────────────────────────────
+let autoRotate = true;
+let clock = { t: 0, last: performance.now() };
+
+function animate(ts){
+  requestAnimationFrame(animate);
+  const dt = Math.min((ts - clock.last)*0.001, 0.05);
+  clock.last = ts; clock.t += dt;
+  specT = clock.t;
+
+  if(!isDragging && rotSpeed > 0.01 && modelGroup){
+    modelGroup.rotation.y += rotSpeed * dt * 0.5;
+  }
+
+  // Pulsing glow
+  if(glowLight){
+    glowLight.intensity = (1.5 + fluorStrength*2.5) * (0.92 + 0.08*Math.sin(clock.t*4));
+  }
+
+  // Bg fog color
+  const bg = bgDark;
+  renderer.setClearColor(new THREE.Color(bg*0.04, bg*0.06, bg*0.09), 1);
+
+  updateCamera();
+  renderer.render(scene, camera);
+
+  // Spectra
+  drawSpectrum(document.getElementById('specCanvas'), false, clock.t);
+  drawSpectrum(document.getElementById('spec-bottom'), true, clock.t);
+}
+
+// ── Variant Buttons ───────────────────────────────────────
+document.querySelectorAll('.vbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    currentVariant = b.dataset.v;
+    updateUI();
+    applyVariant();
+  });
+});
+
+// ── Mode Buttons ──────────────────────────────────────────
+document.querySelectorAll('.mbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.mbtn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    displayMode = b.dataset.mode;
+    applyVariant();
+  });
+});
+
+// ── Sliders ───────────────────────────────────────────────
+[
+  ['s-fluor','v-fluor', v=>fluorStrength=parseFloat(v), v=>parseFloat(v).toFixed(2)],
+  ['s-glow','v-glow', v=>glowStrength=parseFloat(v), v=>parseFloat(v).toFixed(2)],
+  ['s-opacity','v-opacity', v=>opacityVal=parseFloat(v), v=>parseFloat(v).toFixed(2)],
+  ['s-rot','v-rot', v=>rotSpeed=parseFloat(v), v=>parseFloat(v).toFixed(2)],
+  ['s-bg','v-bg', v=>bgDark=parseFloat(v), v=>parseFloat(v).toFixed(2)],
+].forEach(([sid, vid, setter, fmt])=>{
+  const el = document.getElementById(sid);
+  el.addEventListener('input',()=>{
+    setter(el.value);
+    document.getElementById(vid).textContent = fmt(el.value);
+    applyVariant();
+  });
+});
+
+// ── Boot ──────────────────────────────────────────────────
+requestAnimationFrame(animate);
+initModel();
+updateUI();
+</script>
+</body>
+</html>
