@@ -40,3 +40,5 @@ All five variants maintain ≥55 FPS on the target mid-end hardware, satisfying 
 
 **B. Emission Spectral Accuracy**
 <img width="940" height="267" alt="image" src="https://github.com/user-attachments/assets/b380f52d-e424-47ae-9864-2f3ed1c3bb67" />
+
+Emission peak accuracy was validated by comparing the application's Gaussian model centers (λem,model) against reference values from peer-reviewed spectroscopy literature [1][2][4]. Table IV reports the comparison; all variants fall within ±3 nm of experimental values, satisfying the stated accuracy target.
