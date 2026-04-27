@@ -42,3 +42,19 @@ All five variants maintain ≥55 FPS on the target mid-end hardware, satisfying 
 <img width="940" height="267" alt="image" src="https://github.com/user-attachments/assets/b380f52d-e424-47ae-9864-2f3ed1c3bb67" />
 
 Emission peak accuracy was validated by comparing the application's Gaussian model centers (λem,model) against reference values from peer-reviewed spectroscopy literature [1][2][4]. Table IV reports the comparison; all variants fall within ±3 nm of experimental values, satisfying the stated accuracy target.
+
+
+<img width="1920" height="952" alt="image" src="https://github.com/user-attachments/assets/62248439-895d-4478-8a8e-03aa96f6434d" />
+GFP - Wild Type
+
+<img width="1920" height="954" alt="image" src="https://github.com/user-attachments/assets/33f0e198-97c1-47a7-bad8-8a3f42ee1377" />
+BFP - Blue
+
+<img width="1920" height="959" alt="image" src="https://github.com/user-attachments/assets/ee5aaee6-5950-4d6b-8ad2-4011d5c44f2e" />
+CFP - Cyan
+
+<img width="1920" height="952" alt="image" src="https://github.com/user-attachments/assets/5762e366-9de8-4139-bca7-6a787b1eb1df" />
+YFP - Yellow
+
+<img width="1920" height="954" alt="image" src="https://github.com/user-attachments/assets/40986959-4342-4562-a2af-f9d32aed9fdc" />
+RFP - Red
