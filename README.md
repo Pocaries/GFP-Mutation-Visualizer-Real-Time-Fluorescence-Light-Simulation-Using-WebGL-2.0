@@ -25,7 +25,7 @@ The Sequence Alignment tab implements a custom pairwise alignment renderer for t
 **G. Protein Geometry Construction**
 To ensure zero external dependencies and instant load, all 3D geometry is constructed procedurally on the CPU at initialization. The β-barrel is tessellated as an 11-stranded torus mesh (~5,184 vertices), the α-helix as a cylindrical tube with longitudinal subdivisions, and the chromophore as a central glowing sphere. Vertex Buffer Objects (VBOs) are uploaded once to the GPU and reused across frames; only the rotation quaternion and glow intensity uniforms are updated per frame.
 
-**V. EXPERIMENTAL RESULTS & VALIDATION**
+**EXPERIMENTAL RESULTS & VALIDATION**
 
 **A. Real-Time Rendering Performance**
 <img width="948" height="268" alt="image" src="https://github.com/user-attachments/assets/b2a04a94-e356-4441-9ef7-02d8ae195567" />
